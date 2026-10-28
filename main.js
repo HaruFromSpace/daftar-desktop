@@ -10,6 +10,9 @@ const SITE = process.env.DAFTAR_URL || 'https://due-next.onrender.com';
 const ORIGIN = new URL(SITE).origin;
 const ICON = path.join(__dirname, 'build', 'icon.png');
 const HIDE_NEXT = () => path.join(app.getPath('userData'), 'start-hidden');
+// The title bar is drawn by the page in Daftar's colours; Windows only draws
+// the minimise, maximise and close buttons on top of it, in matching colours.
+const TITLEBAR = { height: 32, color: '#eeece6', symbolColor: '#57534a' };
 
 let win = null;
 let tray = null;
@@ -48,6 +51,8 @@ function createWindow({ hidden }) {
     icon: ICON,
     backgroundColor: '#f6f5f1',
     autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: TITLEBAR,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -119,6 +124,19 @@ ipcMain.on('daftar:notify', (event, payload) => {
   const text = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
   const url = text(payload?.url, 300);
   notify({ title: text(payload?.title, 120) || 'Daftar', body: text(payload?.body, 300), url: url && sameSite(url) ? url : '' });
+});
+
+// Only the main window has the drawn title bar; windows opened from it keep
+// the normal Windows frame.
+ipcMain.on('daftar:titlebar-on', (event) => {
+  event.returnValue = Boolean(win && event.sender === win.webContents);
+});
+ipcMain.on('daftar:titlebar', (event, colors) => {
+  if (!win || event.sender !== win.webContents || !sameSite(event.senderFrame?.url || '')) return;
+  const hex = (v) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
+  const color = hex(colors?.color);
+  const symbolColor = hex(colors?.symbol);
+  if (color && symbolColor) win.setTitleBarOverlay({ color, symbolColor, height: TITLEBAR.height });
 });
 
 ipcMain.handle('daftar:autostart', (event, on) => {
