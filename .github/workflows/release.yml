@@ -1,7 +1,8 @@
 name: Release
 
 # Runs when the version in package.json changes on main (or by hand from the
-# Actions tab). Skips if that version already has a release.
+# Actions tab). Skips if that version is already published; a draft gets
+# filled in and published.
 on:
   push:
     branches: [main]
@@ -23,7 +24,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           v=$(node -p "require('./package.json').version")
-          if gh release view "v$v" >/dev/null 2>&1; then
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if [ "$(gh release view "v$v" --json isDraft --jq .isDraft 2>/dev/null)" = "false" ]; then
             echo "v$v is already released, nothing to do."
             echo "new=false" >> "$GITHUB_OUTPUT"
           else
@@ -40,3 +42,9 @@ jobs:
         if: steps.version.outputs.new == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the release
+        if: steps.version.outputs.new == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "v${{ steps.version.outputs.version }}" --draft=false --latest
