@@ -1,8 +1,7 @@
 name: Release
 
 # Runs when the version in package.json changes on main (or by hand from the
-# Actions tab). Skips if that version is already published; a draft gets
-# filled in and published.
+# Actions tab). Skips if that version is already published with all its files.
 on:
   push:
     branches: [main]
@@ -17,7 +16,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check if this version is new
+      - name: Get the release ready
         id: version
         shell: bash
         env:
@@ -25,12 +24,21 @@ jobs:
         run: |
           v=$(node -p "require('./package.json').version")
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          if [ "$(gh release view "v$v" --json isDraft --jq .isDraft 2>/dev/null)" = "false" ]; then
-            echo "v$v is already released, nothing to do."
+          state=$(gh release view "v$v" --json isDraft,assets --jq '(if .isDraft then "draft" else "published" end) + (if any(.assets[]; .name == "latest.yml") then "-complete" else "" end)' 2>/dev/null || echo none)
+          echo "v$v: $state"
+          if [ "$state" = "published-complete" ]; then
             echo "new=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "new=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          # The release exists as a draft before the upload starts, so the
+          # parallel uploads don't race to create it. A published release that
+          # is missing files goes back to draft and gets them.
+          if [ "$state" = none ]; then
+            gh release create "v$v" --draft --title "$v" --notes "" --target "$GITHUB_SHA"
+          elif [ "${state%-complete}" = published ]; then
+            gh release edit "v$v" --draft=true
+          fi
+          echo "new=true" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         if: steps.version.outputs.new == 'true'
         with:
