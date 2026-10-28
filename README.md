@@ -15,6 +15,6 @@ Prefer the browser? Daftar also works at [due-next.onrender.com](https://due-nex
 
 ## How it's built
 
-The app is a small window around the Daftar website, with reminders, a tray icon and updates added on top. Pushing a tag like `v1.0.1` (matching `version` in `package.json`) makes GitHub build the installer on Windows and publish it as a release. Installed copies pick up the new version on their own.
+The app is a small window around the Daftar website, with reminders, a tray icon and updates added on top. Raising `version` in `package.json` on main makes GitHub build the installer on Windows and publish it as a release. Installed copies pick up the new version on their own.
 
 Made by a GJU student. Not an official GJU app.

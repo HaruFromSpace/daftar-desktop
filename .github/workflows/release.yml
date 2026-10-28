@@ -1,8 +1,12 @@
 name: Release
 
+# Runs when the version in package.json changes on main (or by hand from the
+# Actions tab). Skips if that version already has a release.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,11 +16,27 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check if this version is new
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if gh release view "v$v" >/dev/null 2>&1; then
+            echo "v$v is already released, nothing to do."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
+        if: steps.version.outputs.new == 'true'
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: steps.version.outputs.new == 'true'
       - run: npx electron-builder --win nsis --x64 --publish always
+        if: steps.version.outputs.new == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
